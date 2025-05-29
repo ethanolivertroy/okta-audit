@@ -180,24 +180,98 @@ okta_audit_results_TIMESTAMP/
 - **Logging and Monitoring**: V-273202
 - **Advanced Authentication**: V-273204, V-273205, V-273207
 
-### Automated vs Manual Checks
-- **Automated**: ~85% of checks are automated via API
-- **Manual Verification Required**:
-  - DOD Warning Banner (V-273192)
-  - Account inactivity automation workflows
-  - FIPS compliance mode at platform level
-  - Certificate authority validation
+### STIG Coverage Details
+
+**Fully Automated (19/24):**
+- ✅ All session management checks (V-273186, V-273187, V-273203, V-273206)
+- ✅ All password policy checks (V-273195 through V-273201, V-273208, V-273209)
+- ✅ MFA enforcement checks (V-273193, V-273194)
+- ✅ Authentication security checks (V-273189, V-273190, V-273191)
+- ✅ Log offloading check (V-273202)
+- ✅ PIV/CAC support detection (V-273204)
+
+**Partially Automated (4/24):**
+- ⚠️ V-273188: We detect inactive users but can't verify automation workflows via API
+- ⚠️ V-273205: We check Okta Verify settings but FIPS mode is a platform-level setting
+- ⚠️ V-273207: We detect certificate IdPs but can't validate CA chains automatically
+
+**Manual Only (1/24):**
+- ❌ V-273192: DOD Warning Banner - this is a UI element that can't be checked via API
+
 
 ## API Permissions Required
 
-The API token needs the following Okta permissions:
-- Read access to policies (all types)
-- Read access to authenticators
-- Read access to users and groups
-- Read access to applications
-- Read access to identity providers
-- Read access to system logs
-- Read access to event hooks and log streams
+### Creating a Read-Only API Token
+
+1. Log in to your Okta Admin Console
+2. Navigate to **Security** > **API** > **Tokens**
+3. Click **Create Token**
+4. Name your token (e.g., "Audit Script Read-Only")
+5. Copy the token value immediately (it won't be shown again)
+
+### Required Permissions
+
+The API token needs the following Okta permissions for comprehensive auditing:
+
+**User Management**
+- `okta.users.read` - Read user profiles and status
+- `okta.groups.read` - Read group memberships
+- `okta.apps.read` - Read application assignments
+
+**Authentication & Security**
+- `okta.authenticators.read` - Read authenticator configurations
+- `okta.authorizationServers.read` - Read authorization server settings
+- `okta.idps.read` - Read identity provider configurations
+- `okta.trustedOrigins.read` - Read trusted origins
+
+**Policies**
+- `okta.policies.read` - Read all policy types including:
+  - Sign-on policies
+  - Password policies
+  - MFA enrollment policies
+  - Access policies
+  - User lifecycle policies
+  - Authentication policies
+
+**Logging & Monitoring**
+- `okta.logs.read` - Read system logs
+- `okta.eventHooks.read` - Read event hook configurations
+- `okta.logStreams.read` - Read log streaming configurations
+
+**System Configuration**
+- `okta.orgs.read` - Read organization settings
+- `okta.factors.read` - Read factor configurations
+- `okta.deviceAssurance.read` - Read device assurance policies
+- `okta.networkZones.read` - Read network zones
+- `okta.behaviors.read` - Read behavior detection settings
+
+### Using Admin Roles Instead
+
+Alternatively, you can use an account with one of these read-only admin roles:
+- **Read-Only Administrator** - Full read access to all Okta resources
+- **Compliance Administrator** - Designed for compliance auditing
+- **Report Administrator** - Access to reports and logs
+
+### Token Security Best Practices
+
+1. **Use a dedicated service account** for auditing rather than personal credentials
+2. **Rotate tokens regularly** (recommended: every 90 days)
+3. **Store tokens securely** using environment variables or secrets management
+4. **Monitor token usage** through Okta system logs
+5. **Revoke tokens immediately** when no longer needed
+
+### Verifying Token Permissions
+
+To verify your token has the correct permissions:
+```bash
+curl -X GET "https://your-org.okta.com/api/v1/users?limit=1" \
+  -H "Authorization: SSWS YOUR_API_TOKEN" \
+  -H "Accept: application/json"
+```
+
+If successful, you'll receive a JSON response. Common permission errors:
+- `401 Unauthorized` - Invalid token
+- `403 Forbidden` - Token lacks required permissions
 
 ## Key Reports
 

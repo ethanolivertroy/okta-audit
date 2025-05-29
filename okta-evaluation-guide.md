@@ -19,6 +19,7 @@ This guide provides a systematic approach to manually evaluate an Okta implement
 14. [Federal Subscription Validation](#15-federal-subscription-validation)
 15. [NIST 800-53 Control Matrix](#nist-800-53-control-matrix)
 16. [Security Best Practices](#16-security-best-practices)
+17. [DISA STIG Requirements](#17-disa-stig-requirements)
 
 ## Prerequisites
 
@@ -529,6 +530,279 @@ curl -s -X GET \
 - [ ] Regular user access reviews are conducted.
 - [ ] Feature release and update settings are reviewed before enabling.
 - [ ] Inline Hooks and custom integrations are audited for security.
+
+## 17. DISA STIG Requirements
+
+The Defense Information Systems Agency (DISA) has published Security Technical Implementation Guides (STIGs) specifically for Okta IDaaS. These STIGs provide detailed security configuration standards required for DOD implementations. The following section outlines the key STIG requirements organized by security domains.
+
+### Session Management STIGs
+
+#### V-273186: Global Session Timeout (15 minutes)
+**Severity**: Medium  
+**Requirement**: Okta must log out a session after a 15-minute period of inactivity.
+
+**Admin Console Steps**:
+1. Go to **Security → Global Session Policy**
+2. Select the Default Policy
+3. Add or edit a rule with:
+   - Maximum Okta global session idle time: 15 minutes
+
+#### V-273187: Admin Console Session Timeout (15 minutes)
+**Severity**: Medium  
+**Requirement**: The Okta Admin Console must log out a session after a 15-minute period of inactivity.
+
+**Admin Console Steps**:
+1. Go to **Applications → Applications → Okta Admin Console**
+2. In the Sign On tab, under "Okta Admin Console session"
+3. Set Maximum app session idle time: 15 minutes
+
+#### V-273203: Global Session Lifetime (18 hours)
+**Severity**: Medium  
+**Requirement**: Okta must be configured to limit the global session lifetime to 18 hours.
+
+**Admin Console Steps**:
+1. Go to **Security → Global Session Policy**
+2. In the rule configuration, set:
+   - Maximum Okta global session lifetime: 18 hours
+
+#### V-273206: Disable Persistent Session Cookies
+**Severity**: Medium  
+**Requirement**: Okta must be configured to disable persistent global session cookies.
+
+**Admin Console Steps**:
+1. Go to **Security → General**
+2. Set "Okta global session cookies persist across browser sessions" to Disabled
+
+### Account Management STIGs
+
+#### V-273188: Automatic Account Disabling (35 days)
+**Severity**: Medium  
+**Requirement**: Okta must automatically disable accounts after a 35-day period of account inactivity.
+
+**Admin Console Steps**:
+1. Go to **Workflow → Automations**
+2. Create automation with:
+   - Condition: User Inactivity in Okta (35 days)
+   - Action: Change User lifecycle state to Suspended
+   - Schedule: Run Daily
+   - Applies to: Everyone
+
+#### V-273189: Account Lockout Policy
+**Severity**: Medium  
+**Requirement**: Okta must enforce the limit of three consecutive invalid login attempts by a user during a 15-minute time period.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each Password Policy:
+   - Enable "Lock out after 3 unsuccessful attempts"
+
+### Authentication Requirements STIGs
+
+#### V-273190: Dashboard Phishing-Resistant Authentication
+**Severity**: Medium  
+**Requirement**: The Okta Dashboard application must be configured to allow authentication only via non-phishable authenticators.
+
+**Admin Console Steps**:
+1. Go to **Security → Authentication Policies**
+2. Edit "Okta Dashboard" policy
+3. In top rule, set:
+   - Possession factor constraints: Phishing resistant (checked)
+
+#### V-273191: Admin Console Phishing-Resistant Authentication
+**Severity**: Medium  
+**Requirement**: The Okta Admin Console application must be configured to allow authentication only via non-phishable authenticators.
+
+**Admin Console Steps**:
+1. Go to **Security → Authentication Policies**
+2. Edit "Okta Admin Console" policy
+3. In top rule, set:
+   - Possession factor constraints: Phishing resistant (checked)
+
+#### V-273193: Admin Console MFA
+**Severity**: High  
+**Requirement**: The Okta Admin Console application must be configured to use multifactor authentication.
+
+**Admin Console Steps**:
+1. Go to **Security → Authentication Policies**
+2. Edit "Okta Admin Console" policy
+3. Set "User must authenticate with":
+   - "Password/IdP + Another factor" OR "Any 2 factor types"
+
+#### V-273194: Dashboard MFA
+**Severity**: High  
+**Requirement**: The Okta Dashboard application must be configured to use multifactor authentication.
+
+**Admin Console Steps**:
+1. Go to **Security → Authentication Policies**
+2. Edit "Okta Dashboard" policy
+3. Set "User must authenticate with":
+   - "Password/IdP + Another factor" OR "Any 2 factor types"
+
+#### V-273204: PIV/CAC Authentication
+**Severity**: Medium  
+**Requirement**: Okta must be configured to accept Personal Identity Verification (PIV) credentials.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Verify "Smart Card Authenticator" is active
+3. Configure with DOD-approved certificates
+
+### Password Policy STIGs
+
+#### V-273195: Minimum Password Length (15 characters)
+**Severity**: Medium  
+**Requirement**: Okta must enforce a minimum 15-character password length.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, set:
+   - Minimum Length: 15 characters
+
+#### V-273196-V-273199: Password Complexity
+**Severity**: Medium  
+**Requirements**: Okta must enforce password complexity by requiring:
+- At least one uppercase character (V-273196)
+- At least one lowercase character (V-273197)
+- At least one numeric character (V-273198)
+- At least one special character (V-273199)
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, enable:
+   - Upper case letter (checked)
+   - Lower case letter (checked)
+   - Number (0-9) (checked)
+   - Symbol (e.g., !@#$%^&*) (checked)
+
+#### V-273200: Minimum Password Lifetime (24 hours)
+**Severity**: Medium  
+**Requirement**: Okta must enforce 24 hours/one day as the minimum password lifetime.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, set:
+   - Minimum password age: 24 hours
+
+#### V-273201: Maximum Password Lifetime (60 days)
+**Severity**: Medium  
+**Requirement**: Okta must enforce a 60-day maximum password lifetime restriction.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, set:
+   - Password expires after: 60 days
+
+#### V-273208: Common Password Check
+**Severity**: Medium  
+**Requirement**: Okta must validate passwords against a list of commonly used, expected, or compromised passwords.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, enable:
+   - Common Password Check
+
+#### V-273209: Password History
+**Severity**: Medium  
+**Requirement**: Okta must prohibit password reuse for a minimum of five generations.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Password authenticator
+3. For each policy, set:
+   - Enforce password history for last: 5 passwords
+
+### Security Configuration STIGs
+
+#### V-273192: DOD Warning Banner
+**Severity**: Medium  
+**Requirement**: Okta must display the Standard Mandatory DOD Notice and Consent Banner before granting access to the application.
+
+**Implementation**: Follow the supplemental "Okta DOD Warning Banner Configuration Guide" provided with the STIG package.
+
+#### V-273202: Audit Log Streaming
+**Severity**: High  
+**Requirement**: Okta must off-load audit records onto a central log server.
+
+**Admin Console Steps**:
+1. Go to **Reports → Log Streaming**
+2. Configure one of:
+   - AWS EventBridge integration
+   - Splunk integration
+   - External SIEM via API polling
+
+**Alternative API Method**:
+- Configure external SIEM to poll `/api/v1/logs` endpoint
+- Ensure logs are collected at least every 5 minutes
+
+#### V-273205: FIPS Compliance for Okta Verify
+**Severity**: Medium  
+**Requirement**: The Okta Verify application must be configured to connect only to FIPS-compliant devices.
+
+**Admin Console Steps**:
+1. Go to **Security → Authenticators**
+2. Edit Okta Verify settings
+3. Enable FIPS Compliance mode
+
+#### V-273207: DOD-Approved Certificate Authorities
+**Severity**: Medium  
+**Requirement**: Okta must be configured to use only DOD-approved certificate authorities.
+
+**Admin Console Steps**:
+1. Go to **Security → Identity Providers**
+2. For Smart Card IdP configuration:
+   - Upload only DOD-approved CA certificates
+   - Remove any non-DOD certificate authorities
+
+### STIG Compliance Checklist Summary
+
+Use this checklist to verify all DISA STIG requirements are met:
+
+**Session Management**
+- [ ] Global session timeout: 15 minutes inactive
+- [ ] Admin Console timeout: 15 minutes inactive  
+- [ ] Global session lifetime: 18 hours maximum
+- [ ] Persistent cookies: Disabled
+
+**Account Management**
+- [ ] Automatic account disabling: 35 days
+- [ ] Account lockout: 3 attempts
+
+**Authentication**
+- [ ] Dashboard: Phishing-resistant factors only
+- [ ] Admin Console: Phishing-resistant factors only
+- [ ] Dashboard: MFA required
+- [ ] Admin Console: MFA required
+- [ ] PIV/CAC: Smart Card enabled
+
+**Password Policies**
+- [ ] Minimum length: 15 characters
+- [ ] Complexity: Upper, lower, number, symbol required
+- [ ] Minimum age: 24 hours
+- [ ] Maximum age: 60 days
+- [ ] Common password check: Enabled
+- [ ] Password history: 5 generations
+
+**Security Configuration**
+- [ ] DOD warning banner: Configured
+- [ ] Audit logs: Streaming to SIEM
+- [ ] Okta Verify: FIPS mode enabled
+- [ ] Certificate authorities: DOD-approved only
+
+### STIG Documentation Resources
+
+The complete DISA STIG package includes:
+- **U_Okta_IDaaS_STIG_V1R1_Manual-xccdf.xml**: Machine-readable STIG checklist
+- **U_Okta_IDaaS_V1R1_Overview.pdf**: Overview and implementation guidance
+- **U_Okta_IDaaS_DOD_Warning_Banner_Configuration_Guide_V1R1.pdf**: Detailed banner setup instructions
+- **U_Okta_IDaaS_V1R1_Revision_History.pdf**: Version history and changes
+
+For the latest STIG updates, visit: https://public.cyber.mil/stigs/
 
 ## Documentation Template
 
