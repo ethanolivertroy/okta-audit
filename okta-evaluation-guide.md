@@ -547,6 +547,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. Add or edit a rule with:
    - Maximum Okta global session idle time: 15 minutes
 
+**API Quick Check**:
+```bash
+# Check global session policy for idle timeout settings
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=OKTA_SIGN_ON" | \
+  jq '.[] | select(.name == "Default Policy") | .conditions.session.maxSessionIdleMinutes' \
+  | grep -q "15" && echo "✓ COMPLIANT: 15-minute idle timeout" || echo "✗ NON-COMPLIANT: Check idle timeout"
+```
+
 #### V-273187: Admin Console Session Timeout (15 minutes)
 **Severity**: Medium  
 **Requirement**: The Okta Admin Console must log out a session after a 15-minute period of inactivity.
@@ -555,6 +566,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 1. Go to **Applications → Applications → Okta Admin Console**
 2. In the Sign On tab, under "Okta Admin Console session"
 3. Set Maximum app session idle time: 15 minutes
+
+**API Quick Check**:
+```bash
+# Find Admin Console app and check session settings
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/apps?filter=name+eq+%22okta_admin_console%22" | \
+  jq '.[0].settings.signOn.maxSessionIdleMinutes' | \
+  grep -q "15" && echo "✓ COMPLIANT: Admin Console 15-minute timeout" || echo "✗ NON-COMPLIANT: Check Admin Console timeout"
+```
 
 #### V-273203: Global Session Lifetime (18 hours)
 **Severity**: Medium  
@@ -565,6 +587,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. In the rule configuration, set:
    - Maximum Okta global session lifetime: 18 hours
 
+**API Quick Check**:
+```bash
+# Check global session policy for maximum lifetime (1080 minutes = 18 hours)
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=OKTA_SIGN_ON" | \
+  jq '.[] | select(.name == "Default Policy") | .conditions.session.maxSessionLifetimeMinutes' | \
+  grep -q "1080" && echo "✓ COMPLIANT: 18-hour session lifetime" || echo "✗ NON-COMPLIANT: Check session lifetime"
+```
+
 #### V-273206: Disable Persistent Session Cookies
 **Severity**: Medium  
 **Requirement**: Okta must be configured to disable persistent global session cookies.
@@ -572,6 +605,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 **Admin Console Steps**:
 1. Go to **Security → General**
 2. Set "Okta global session cookies persist across browser sessions" to Disabled
+
+**API Quick Check**:
+```bash
+# Check if persistent session cookies are disabled
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=OKTA_SIGN_ON" | \
+  jq '.[] | select(.name == "Default Policy") | .conditions.session.usePersistentCookie' | \
+  grep -q "false" && echo "✓ COMPLIANT: Persistent cookies disabled" || echo "✗ NON-COMPLIANT: Persistent cookies may be enabled"
+```
 
 ### Account Management STIGs
 
@@ -587,6 +631,18 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
    - Schedule: Run Daily
    - Applies to: Everyone
 
+**API Quick Check**:
+```bash
+# Check for users inactive for more than 35 days (requires manual review of automation)
+THIRTYFIVE_DAYS_AGO=$(date -u -d '35 days ago' +"%Y-%m-%dT%H:%M:%S.000Z")
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/users?filter=status+eq+%22ACTIVE%22+and+lastLogin+lt+%22${THIRTYFIVE_DAYS_AGO}%22&limit=200" | \
+  jq 'length' | \
+  { read count; [ $count -eq 0 ] && echo "✓ COMPLIANT: No active users inactive >35 days" || echo "✗ NON-COMPLIANT: $count users inactive >35 days"; }
+```
+
 #### V-273189: Account Lockout Policy
 **Severity**: Medium  
 **Requirement**: Okta must enforce the limit of three consecutive invalid login attempts by a user during a 15-minute time period.
@@ -596,6 +652,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. Edit Password authenticator
 3. For each Password Policy:
    - Enable "Lock out after 3 unsuccessful attempts"
+
+**API Quick Check**:
+```bash
+# Check password policies for lockout settings
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, lockout: .settings.password.lockout}' | \
+  jq -r 'if .lockout.maxAttempts == 3 then "✓ COMPLIANT: " + .name + " - 3 attempt lockout" else "✗ NON-COMPLIANT: " + .name + " - Check lockout settings" end'
+```
 
 ### Authentication Requirements STIGs
 
@@ -609,6 +676,21 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. In top rule, set:
    - Possession factor constraints: Phishing resistant (checked)
 
+**API Quick Check**:
+```bash
+# Check Dashboard app authentication policy for phishing-resistant factors
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/apps?filter=name+eq+%22okta_dashboard%22" | \
+  jq -r '.[0].id' | \
+  xargs -I {} curl -s -X GET \
+    -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+    -H "Accept: application/json" \
+    "https://${OKTA_DOMAIN}/api/v1/apps/{}/policies" | \
+  jq '.authentication | if . != null then "Check authentication policy manually" else "Authentication policy needs verification" end'
+```
+
 #### V-273191: Admin Console Phishing-Resistant Authentication
 **Severity**: Medium  
 **Requirement**: The Okta Admin Console application must be configured to allow authentication only via non-phishable authenticators.
@@ -618,6 +700,21 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. Edit "Okta Admin Console" policy
 3. In top rule, set:
    - Possession factor constraints: Phishing resistant (checked)
+
+**API Quick Check**:
+```bash
+# Check Admin Console app authentication policy for phishing-resistant factors
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/apps?filter=name+eq+%22okta_admin_console%22" | \
+  jq -r '.[0].id' | \
+  xargs -I {} curl -s -X GET \
+    -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+    -H "Accept: application/json" \
+    "https://${OKTA_DOMAIN}/api/v1/apps/{}/policies" | \
+  jq '.authentication | if . != null then "Check authentication policy manually" else "Authentication policy needs verification" end'
+```
 
 #### V-273193: Admin Console MFA
 **Severity**: High  
@@ -629,6 +726,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. Set "User must authenticate with":
    - "Password/IdP + Another factor" OR "Any 2 factor types"
 
+**API Quick Check**:
+```bash
+# Check if Admin Console requires MFA
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=ACCESS_POLICY" | \
+  jq '.[] | select(.name | contains("Admin")) | {name: .name, priority: .priority}' | \
+  jq -r '"Admin policy found: " + .name + " - Verify MFA requirement manually"'
+```
+
 #### V-273194: Dashboard MFA
 **Severity**: High  
 **Requirement**: The Okta Dashboard application must be configured to use multifactor authentication.
@@ -639,6 +747,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. Set "User must authenticate with":
    - "Password/IdP + Another factor" OR "Any 2 factor types"
 
+**API Quick Check**:
+```bash
+# Check if Dashboard requires MFA
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=ACCESS_POLICY" | \
+  jq '.[] | select(.name | contains("Dashboard")) | {name: .name, priority: .priority}' | \
+  jq -r '"Dashboard policy found: " + .name + " - Verify MFA requirement manually"'
+```
+
 #### V-273204: PIV/CAC Authentication
 **Severity**: Medium  
 **Requirement**: Okta must be configured to accept Personal Identity Verification (PIV) credentials.
@@ -647,6 +766,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 1. Go to **Security → Authenticators**
 2. Verify "Smart Card Authenticator" is active
 3. Configure with DOD-approved certificates
+
+**API Quick Check**:
+```bash
+# Check if Smart Card authenticator is enabled
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/authenticators" | \
+  jq '.[] | select(.type == "smart_card" or .key == "smart_card") | {name: .name, status: .status}' | \
+  jq -r 'if .status == "ACTIVE" then "✓ COMPLIANT: Smart Card authenticator active" else "✗ NON-COMPLIANT: Smart Card not active" end'
+```
 
 ### Password Policy STIGs
 
@@ -659,6 +789,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. Edit Password authenticator
 3. For each policy, set:
    - Minimum Length: 15 characters
+
+**API Quick Check**:
+```bash
+# Check password policies for minimum length requirement
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, minLength: .settings.password.complexity.minLength}' | \
+  jq -r 'if .minLength >= 15 then "✓ COMPLIANT: " + .name + " - Min length " + (.minLength|tostring) else "✗ NON-COMPLIANT: " + .name + " - Min length " + (.minLength|tostring) end'
+```
 
 #### V-273196-V-273199: Password Complexity
 **Severity**: Medium  
@@ -677,6 +818,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
    - Number (0-9) (checked)
    - Symbol (e.g., !@#$%^&*) (checked)
 
+**API Quick Check**:
+```bash
+# Check password complexity requirements
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, complexity: .settings.password.complexity}' | \
+  jq -r 'if (.complexity.minLowerCase >= 1 and .complexity.minUpperCase >= 1 and .complexity.minNumber >= 1 and .complexity.minSymbol >= 1) then "✓ COMPLIANT: " + .name + " - All complexity requirements met" else "✗ NON-COMPLIANT: " + .name + " - Check complexity requirements" end'
+```
+
 #### V-273200: Minimum Password Lifetime (24 hours)
 **Severity**: Medium  
 **Requirement**: Okta must enforce 24 hours/one day as the minimum password lifetime.
@@ -686,6 +838,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. Edit Password authenticator
 3. For each policy, set:
    - Minimum password age: 24 hours
+
+**API Quick Check**:
+```bash
+# Check minimum password age setting
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, minAgeMinutes: .settings.password.age.minAgeMinutes}' | \
+  jq -r 'if .minAgeMinutes >= 1440 then "✓ COMPLIANT: " + .name + " - Min age " + (.minAgeMinutes/60/24|tostring) + " days" else "✗ NON-COMPLIANT: " + .name + " - Min age less than 24 hours" end'
+```
 
 #### V-273201: Maximum Password Lifetime (60 days)
 **Severity**: Medium  
@@ -697,6 +860,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. For each policy, set:
    - Password expires after: 60 days
 
+**API Quick Check**:
+```bash
+# Check maximum password age setting
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, maxAgeDays: .settings.password.age.maxAgeDays}' | \
+  jq -r 'if .maxAgeDays <= 60 and .maxAgeDays > 0 then "✓ COMPLIANT: " + .name + " - Max age " + (.maxAgeDays|tostring) + " days" else "✗ NON-COMPLIANT: " + .name + " - Max age exceeds 60 days or not set" end'
+```
+
 #### V-273208: Common Password Check
 **Severity**: Medium  
 **Requirement**: Okta must validate passwords against a list of commonly used, expected, or compromised passwords.
@@ -706,6 +880,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. Edit Password authenticator
 3. For each policy, enable:
    - Common Password Check
+
+**API Quick Check**:
+```bash
+# Check if common password check is enabled
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, excludeCommonPasswords: .settings.password.complexity.excludeCommonPasswords}' | \
+  jq -r 'if .excludeCommonPasswords == true then "✓ COMPLIANT: " + .name + " - Common password check enabled" else "✗ NON-COMPLIANT: " + .name + " - Common password check disabled" end'
+```
 
 #### V-273209: Password History
 **Severity**: Medium  
@@ -717,6 +902,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 3. For each policy, set:
    - Enforce password history for last: 5 passwords
 
+**API Quick Check**:
+```bash
+# Check password history enforcement
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/policies?type=PASSWORD" | \
+  jq '.[] | {name: .name, historyCount: .settings.password.age.historyCount}' | \
+  jq -r 'if .historyCount >= 5 then "✓ COMPLIANT: " + .name + " - History count " + (.historyCount|tostring) else "✗ NON-COMPLIANT: " + .name + " - History count less than 5" end'
+```
+
 ### Security Configuration STIGs
 
 #### V-273192: DOD Warning Banner
@@ -724,6 +920,21 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 **Requirement**: Okta must display the Standard Mandatory DOD Notice and Consent Banner before granting access to the application.
 
 **Implementation**: Follow the supplemental "Okta DOD Warning Banner Configuration Guide" provided with the STIG package.
+
+**API Quick Check**:
+```bash
+# Check customization settings for warning banner (requires manual verification)
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/brands" | \
+  jq '.[0].id' | \
+  xargs -I {} curl -s -X GET \
+    -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+    -H "Accept: application/json" \
+    "https://${OKTA_DOMAIN}/api/v1/brands/{}/themes" | \
+  jq -r '"Theme configuration found - Manual verification of DOD banner required"'
+```
 
 #### V-273202: Audit Log Streaming
 **Severity**: High  
@@ -740,6 +951,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 - Configure external SIEM to poll `/api/v1/logs` endpoint
 - Ensure logs are collected at least every 5 minutes
 
+**API Quick Check**:
+```bash
+# Check if log streaming is configured
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/eventHooks" | \
+  jq 'if length > 0 then "✓ Event hooks configured: " + (length|tostring) + " active" else "✗ No event hooks - verify log streaming configuration" end' && \
+  echo "Note: Also check for external SIEM polling of /api/v1/logs endpoint"
+```
+
 #### V-273205: FIPS Compliance for Okta Verify
 **Severity**: Medium  
 **Requirement**: The Okta Verify application must be configured to connect only to FIPS-compliant devices.
@@ -748,6 +970,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 1. Go to **Security → Authenticators**
 2. Edit Okta Verify settings
 3. Enable FIPS Compliance mode
+
+**API Quick Check**:
+```bash
+# Check Okta Verify authenticator settings for FIPS compliance
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/authenticators" | \
+  jq '.[] | select(.type == "app" and .name == "Okta Verify") | {name: .name, settings: .settings}' | \
+  jq -r '"Okta Verify found - Check settings manually for FIPS compliance mode"'
+```
 
 #### V-273207: DOD-Approved Certificate Authorities
 **Severity**: Medium  
@@ -758,6 +991,17 @@ The Defense Information Systems Agency (DISA) has published Security Technical I
 2. For Smart Card IdP configuration:
    - Upload only DOD-approved CA certificates
    - Remove any non-DOD certificate authorities
+
+**API Quick Check**:
+```bash
+# Check Identity Providers for certificate configuration
+curl -s -X GET \
+  -H "Authorization: SSWS ${OKTA_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "https://${OKTA_DOMAIN}/api/v1/idps" | \
+  jq '.[] | select(.type == "X509" or .protocol.type == "MTLS") | {name: .name, type: .type, protocol: .protocol.type}' | \
+  jq -r '"Smart Card IdP found: " + .name + " - Verify DOD CA certificates manually"'
+```
 
 ### STIG Compliance Checklist Summary
 
